@@ -1,5 +1,5 @@
 import tensorflow as tf
-from config import model_params, solver_params
+from cfg.config import model_params, solver_params
 
 class Loss(object):
     def __init__(self):
@@ -33,11 +33,24 @@ class Loss(object):
         with tf.name_scope('Labels Tensor'):
             # labels reshape ——> [batch_size, 7, 7, 1] 哪个网格负责检测目标就标记为1
             labels_response = tf.reshape(labels[..., 0], [self.batch_size, self.cell_size, self.cell_size, 1])
-            # 坐标标签 labels reshape ——> [batch_size, 7, 7, 2, 4] 网格内负责检测的外接框位置(x, y, width, height)
+            # 坐标标签 labels reshape ——> [batch_size, 7, 7, 2, 4] 网格内负责检测的外接框位置以图像大小为基准(x, y, width, height)
             labels_boxes = tf.reshape(labels[..., 1:5], [self.batch_size, self.cell_size, self.cell_size, 1, 4])
-            labels_boxes = tf.tile(labels_boxes, [1, 1, 1, self.boxes_per_cell, 1])
+            labels_boxes = tf.tile(labels_boxes, [1, 1, 1, self.boxes_per_cell, 1]) / self.image_size
             # 类别标签 labels reshape ——> [batch, 7, 7, 20]
             labels_classes = labels[..., 5:]
+
+
+        '''
+        # 将网络所预测的bbox相对于cell的偏移量转换为bbox的中心坐标在图像中的比例
+        offset = np.transpose(np.reshape(np.array([np.arange(para.cell_size)] * para.cell_size * para.box_per_cell),
+                                         (para.box_per_cell, para.cell_size, para.cell_size)), (1, 2, 0))
+        # 转换为四维矩阵
+        offset = tf.reshape(tf.constant(offset, dtype=tf.float32), [1, para.cell_size, para.cell_size, para.box_per_cell])
+        # 将第０维复制batch_size次
+        offset = tf.tile(offset, [para.batch_size, 1, 1, 1])
+        offset_tran = tf.transpose(offset, (0, 2, 1, 3))
+        '''
+
         with tf.variable_scope(scope):
             # 类别损失
             class_loss = self.class_loss(predicts_classes, labels_classes, labels_response)
@@ -50,17 +63,17 @@ class Loss(object):
             # 置信度损失
             object_loss, noobject_loss = self.confidence_loss(predicts_scales, iou, object_mask, noobject_mask)
             # 坐标损失
-            coord_loss = self.coord_loss(predicts_boxes, labels_boxes, object_mask)
+            boxes_loss = self.coord_loss(predicts_boxes, labels_boxes, object_mask)
 
             tf.losses.add_loss(class_loss)
             tf.losses.add_loss(object_loss)
             tf.losses.add_loss(noobject_loss)
-            tf.losses.add_loss(coord_loss)
+            tf.losses.add_loss(boxes_loss)
 
             tf.summary.scalar('class_loss', class_loss)
             tf.summary.scalar('object_loss', object_loss)
             tf.summary.scalar('noobject_loss', noobject_loss)
-            tf.summary.scalar('coord_loss', coord_loss)
+            tf.summary.scalar('boxes_loss', boxes_loss)
 
             tf.summary.histogram('iou', iou)
 
@@ -108,13 +121,13 @@ class Loss(object):
             coord_mask = tf.expand_dims(object_mask, axis=-1)
             cell_labals_boxes = self.labels_to_predicts_coord(labels_boxes)
             coord_delta = coord_mask * (predicts_boxes - cell_labals_boxes)
-            coord_loss = self.coord_scale * tf.reduce_mean(tf.reduce_sum(tf.square(coord_delta), axis=[1, 2, 3, 4]))
+            boxes_loss = self.coord_scale * tf.reduce_mean(tf.reduce_sum(tf.square(coord_delta), axis=[1, 2, 3, 4]))
 
             tf.summary.histogram('boxes_delta_x', coord_delta[..., 0])
             tf.summary.histogram('boxes_delta_y', coord_delta[..., 1])
             tf.summary.histogram('boxes_delta_w', coord_delta[..., 2])
             tf.summary.histogram('boxes_delta_h', coord_delta[..., 3])
-        return coord_loss
+        return boxes_loss
 
 
     def predicts_to_labels_coord(self, predicts_boxes):
@@ -184,11 +197,13 @@ class Loss(object):
         :param response: [batch, 7, 7, 1]
         :return: 有目标掩码[batch, 7, 7, 2] 无目标掩码[batch, 7, 7, 2]
         '''
+        # 计算各个cell各自所预测的几个边界框中的IOU的最大值
         object_mask = tf.reduce_max(iou, axis=-1, keep_dims=True)
         # 其维度为[batch_size, 7, 7, 2] 如果cell中真实有目标，那么该cell内iou最大的那个框的相应位置为1（就是负责预测该框），其余为0
         object_mask = tf.cast((iou >= object_mask), tf.float32)
+        # 首先得出当前cell中负责进行目标预测的框，再与真实的置信度进行点乘，得出真实的包含有目标的cell中负责进行目标预测的框．
         object_mask = object_mask * response
-        # 其维度为[batch_size, 7 , 7, 2]， 真实没有目标的区域都为1，真实有目标的区域为0
+        # 没有目标的框其维度为[batch_size, 7 , 7, 2]， 真实没有目标的区域都为1，真实有目标的区域为0
         no_object_mask = tf.ones_like(object_mask, dtype=tf.float32) - object_mask
         return object_mask, no_object_mask
 

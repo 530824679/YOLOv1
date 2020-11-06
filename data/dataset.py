@@ -3,7 +3,7 @@ import os
 import numpy as np
 import tensorflow as tf
 from xml.etree import ElementTree as ET
-from config import path_params, model_params, solver_params, CLASS
+from cfg.config import path_params, model_params, solver_params, CLASS
 
 class Dataset(object):
     def __init__(self):
@@ -66,7 +66,7 @@ class Dataset(object):
             center_x_index = int(center_x / self.image_size * self.cell_size)
             center_y_index = int(center_y / self.image_size * self.cell_size)
 
-            # 存入label
+            # 对每个object,如果这个cell中有object了,则跳过标记
             if label[center_y_index, center_x_index, 0] == 1:
                 continue
             label[center_y_index, center_x_index, 0] = 1
@@ -83,7 +83,15 @@ class Dataset(object):
         else:
             return label
 
-    def make_tfrecord(self):
+    # 定义函数转化变量类型,在将样本图片及标定数据写入tfrecord文件之前需要对两者的数据类型进行转换
+    def _int64_feature(self, value):
+        return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+    # 数组形式的数据,首先转换为string,再转换为二进制形式进行保存
+    def _bytes_feature(self, value):
+        return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
+
+    def create_tfrecord(self):
         # 获取作为训练验证集的图片序列
         trainval_path = os.path.join(self.data_path, 'ImageSets', 'Main', 'trainval.txt')
         if self.flipped:
@@ -95,24 +103,28 @@ class Dataset(object):
                     lines = read.readlines()
                     for line in lines:
                         image_num = line[0:-1]
+
+                        # 获得当前样本数据和标签信息
                         image, image_flipped = self.image_read(image_num=image_num)
                         label, label_flipped = self.make_label(image_num=image_num)
 
+                        # 转换为字符串
                         image_string = image.tostring()
                         image_flipped_string = image_flipped.tostring()
 
+                        # 转换为字符串
                         label_string = label.tostring()
                         label_flipped_string = label_flipped.tostring()
 
                         example = tf.train.Example(features=tf.train.Features(
                             feature={
-                                'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[image_string])),
-                                'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=[label_string]))}))
+                                'image': self._bytes_feature(image_string),
+                                'label': self._bytes_feature(label_string)}))
                         writer.write(example.SerializeToString())
                         example = tf.train.Example(features=tf.train.Features(
                             feature={
-                                'image': tf.train.Feature(bytes_list=tf.train.BytesList(value=[image_flipped_string])),
-                                'label': tf.train.Feature(bytes_list=tf.train.BytesList(value=[label_flipped_string]))}))
+                                'image': self._bytes_feature(image_flipped_string),
+                                'label': self._bytes_feature(label_flipped_string)}))
                         writer.write(example.SerializeToString())
                 writer.close()
                 print('Finish trainval.tfrecord Done')

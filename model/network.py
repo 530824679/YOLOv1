@@ -10,7 +10,7 @@
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 import numpy as np
-from config import model_params
+from cfg.config import model_params
 
 class Network(object):
     def __init__(self, is_train=True):
@@ -33,6 +33,12 @@ class Network(object):
             return tf.nn.leaky_relu(inputs, alpha=alpha, name='leaky_relu')
 
     def _build_network(self, inputs, scope='yolo_v1'):
+        """
+        定义前向传播过程
+        :param inputs:待输入的样本图片
+        :param scope: 命名空间
+        :return: 网络最终的输出
+        """
         with tf.name_scope(scope):
             with slim.arg_scope([slim.conv2d, slim.fully_connected],
                                 activation_fn=self._leaky_relu(self.leaky_alpha),
@@ -41,13 +47,17 @@ class Network(object):
                 net = tf.pad(inputs, np.array([[0, 0], [3, 3], [3, 3], [0, 0]]), name='pad_1')
                 net = slim.conv2d(net, 64, 7, 2, padding='VALID', scope='conv_2')
                 net = slim.max_pool2d(net, 2, padding='SAME', scope='pool_3')
+                # 112x112x64
                 net = slim.conv2d(net, 192, 3, scope='conv_4')
                 net = slim.max_pool2d(net, 2, padding='SAME', scope='pool_5')
+                # 56x56x192
                 net = slim.conv2d(net, 128, 1, scope='conv_6')
                 net = slim.conv2d(net, 256, 3, scope='conv_7')
                 net = slim.conv2d(net, 256, 1, scope='conv_8')
                 net = slim.conv2d(net, 512, 3, scope='conv_9')
                 net = slim.max_pool2d(net, 2, padding='SAME', scope='pool_10')
+                # 28x28x512
+                # 结构重复４次
                 net = slim.conv2d(net, 256, 1, scope='conv_11')
                 net = slim.conv2d(net, 512, 3, scope='conv_12')
                 net = slim.conv2d(net, 256, 1, scope='conv_13')
@@ -56,9 +66,12 @@ class Network(object):
                 net = slim.conv2d(net, 512, 3, scope='conv_16')
                 net = slim.conv2d(net, 256, 1, scope='conv_17')
                 net = slim.conv2d(net, 512, 3, scope='conv_18')
+
                 net = slim.conv2d(net, 512, 1, scope='conv_19')
                 net = slim.conv2d(net, 1024, 3, scope='conv_20')
                 net = slim.max_pool2d(net, 2, padding='SAME', scope='pool_21')
+                # 14x14x1024
+                # 结构重复２次
                 net = slim.conv2d(net, 512, 1, scope='conv_22')
                 net = slim.conv2d(net, 1024, 3, scope='conv_23')
                 net = slim.conv2d(net, 512, 1, scope='conv_24')
@@ -66,12 +79,17 @@ class Network(object):
                 net = slim.conv2d(net, 1024, 3, scope='conv_26')
                 net = tf.pad(net, np.array([[0, 0], [1, 1], [1, 1], [0, 0]]), name='pad_27')
                 net = slim.conv2d(net, 1024, 3, 2, padding='VALID', scope='conv_28')
+                # 7x7x1024
                 net = slim.conv2d(net, 1024, 3, scope='conv_29')
                 net = slim.conv2d(net, 1024, 3, scope='conv_30')
+                # 7x7x1024
+                # 将上一层输出的张量展平为一维向量［image_size*image_size*image_channels］
                 net = slim.flatten(net, scope='flat_31')
                 net = slim.fully_connected(net, 512, scope='fc_32')
                 net = slim.fully_connected(net, 4096, scope='fc_33')
+                # 使用dropout避免过拟合
                 net = slim.dropout(net, keep_prob=self.keep_prob, is_training=self.is_train, scope='dropout_34')
+                # 最后一层全连接层输出最后的结果［cell_size*cell_size*(5*box_per_cell+class_num)］
                 logits = slim.fully_connected(net, self.output_size, activation_fn=None, scope='fc_35')
 
         return logits

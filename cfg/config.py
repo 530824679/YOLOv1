@@ -9,7 +9,8 @@ path_params = {
     'tfrecord_dir': './tfrecord',
     'checkpoints_name': 'model.ckpt',
     'train_tfrecord_name': 'train.tfrecord',
-    'test_tfrecord_name': 'test.tfrecord'
+    'test_tfrecord_name': 'test.tfrecord',
+    'test_output_dir': './test'
 }
 
 model_params = {
@@ -39,12 +40,12 @@ solver_params = {
 }
 
 test_params = {
-    'threshold': 0.2,               # 类别置信度分数阈值
-    'iou_threshold': 0.4,           # iou阈值，小于0.4被过滤掉
+    'prob_threshold': 0.2,          # 类别置信度分数阈值
+    'iou_threshold': 0.4,           # nms阈值，小于0.4被过滤掉
     'max_output_size': 10           # nms选择的边界框最大数量
 }
 
-CLASS = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle',
+CLASSES = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle',
         'bus', 'car', 'cat', 'chair', 'cow',
         'diningtable', 'dog', 'horse', 'motorbike', 'person',
         'pottedplant', 'sheep', 'sofa', 'train', 'tvmonitor']
