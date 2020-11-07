@@ -2,7 +2,12 @@ import tensorflow as tf
 from cfg.config import model_params, solver_params
 
 class Loss(object):
-    def __init__(self):
+    def __init__(self, predicts, labels, scope='loss'):
+        """
+        :param predicts:网络的输出 [batch, cell_size * cell_size * (5 * boxes_per_cell + class_num)]
+        :param labels:标签信息 [batch, cell_size, cell_size, 5 + class_num]
+        :param scope:命名loss
+        """
         self.batch_size = solver_params['batch_size']
         self.image_size = model_params['image_size']
         self.cell_size = model_params['cell_size']
@@ -14,15 +19,11 @@ class Loss(object):
         self.object_scale = model_params['object_scale']
         self.noobject_scale = model_params['noobject_scale']
         self.coord_scale = model_params['coord_scale']
+        self.loss_layer(predicts, labels, scope='loss')
 
     def loss_layer(self, predicts, labels, scope='loss'):
-        """
-        :param predicts:网络的输出 [batch, cell_size * cell_size * (5 * boxes_per_cell + class_num)]
-        :param labels:标签信息 [batch, cell_size, cell_size, 5 + class_num]
-        :param scope:命名loss
-        """
         # 预测坐标：x, y中心点基于cell, sqrt(w),sqrt(h)基于全图0-1范围
-        with tf.name_scope('Predicts Tensor'):
+        with tf.name_scope('Predicts_Tensor'):
             # 类别预测 predicts reshape ——> [batch_size, 7, 7, 20]
             predicts_classes = tf.reshape(predicts[:, :self.boundary1], [self.batch_size, self.cell_size, self.cell_size, self.num_class])
             # 置信度预测 predicts reshape ——> [batch_size, 7, 7, 2]
@@ -30,7 +31,7 @@ class Loss(object):
             # 坐标预测 predicts reshape ——> [batch_size, 7, 7, 2, 4]
             predicts_boxes = tf.reshape(predicts[:, self.boundary2:], [self.batch_size, self.cell_size, self.cell_size, self.boxes_per_cell, 4])
         # 标签坐标： x, y, w, h 基于全图0-1范围
-        with tf.name_scope('Labels Tensor'):
+        with tf.name_scope('Labels_Tensor'):
             # labels reshape ——> [batch_size, 7, 7, 1] 哪个网格负责检测目标就标记为1
             labels_response = tf.reshape(labels[..., 0], [self.batch_size, self.cell_size, self.cell_size, 1])
             # 坐标标签 labels reshape ——> [batch_size, 7, 7, 2, 4] 网格内负责检测的外接框位置以图像大小为基准(x, y, width, height)
@@ -99,12 +100,12 @@ class Loss(object):
         :param noobject_mask: 无目标掩码 [batch, 7, 7, 2], 无目标位置为1,其余0
         :return:
         '''
-        with tf.name_scope('confidence loss'):
-            with tf.name_scope('object confidence loss'):
+        with tf.name_scope('confidence_loss'):
+            with tf.name_scope('object_confidence_loss'):
                 object_confidence_delta = object_mask * (predicts_scale - iou)
                 object_confidence_loss = self.object_scale * tf.reduce_mean(tf.reduce_sum(tf.square(object_confidence_delta), axis=[1, 2, 3]))
 
-            with tf.name_scope('no object confidence loss'):
+            with tf.name_scope('noobject_confidence_loss'):
                 noobject_confidence_delta = noobject_mask * (predicts_scale - 0)
                 noobject_confidence_loss = self.noobject_scale * tf.reduce_mean(tf.reduce_sum(tf.square(noobject_confidence_delta), axis=[1, 2, 3]))
         return object_confidence_loss, noobject_confidence_loss
@@ -133,8 +134,11 @@ class Loss(object):
     def predicts_to_labels_coord(self, predicts_boxes):
         # 边界框的中心坐标xy——相对于每个cell左上点的偏移量
         offset_axis_2 = tf.tile(tf.expand_dims(tf.range(7), axis=0), multiples=[7, 1])
-        offset_axis_2 = tf.tile(tf.reshape(offset_axis_2, shape=[1, 7, 7, 1, 1]), multiples=[1, 1, 1, 2, 1])
-        offset_axis_1 = tf.transpose(offset_axis_2, (0, 2, 1, 3, 4))
+        offset_axis_2 = tf.tile(tf.reshape(offset_axis_2, shape=[1, 7, 7, 1]), multiples=[self.batch_size, 1, 1, 2])
+        offset_axis_1 = tf.transpose(offset_axis_2, (0, 2, 1, 3))
+
+        offset_axis_2 = tf.cast(offset_axis_2, dtype=tf.float32)
+        offset_axis_1 = tf.cast(offset_axis_1, dtype=tf.float32)
 
         x = (predicts_boxes[..., 0] + offset_axis_2) / self.cell_size
         y = (predicts_boxes[..., 1] + offset_axis_1) / self.cell_size
@@ -147,8 +151,11 @@ class Loss(object):
     def labels_to_predicts_coord(self, labels_boxes):
         # 得到x, y相对于该cell左上角的偏移值， 宽度和高度是相对于整张图片的比例
         offset_axis_2 = tf.tile(tf.expand_dims(tf.range(7), axis=0), multiples=[7, 1])
-        offset_axis_2 = tf.tile(tf.reshape(offset_axis_2, shape=[1, 7, 7, 1, 1]), multiples=[1, 1, 1, 2, 1])
-        offset_axis_1 = tf.transpose(offset_axis_2, (0, 2, 1, 3, 4))
+        offset_axis_2 = tf.tile(tf.reshape(offset_axis_2, shape=[1, 7, 7, 1]), multiples=[self.batch_size, 1, 1, 2])
+        offset_axis_1 = tf.transpose(offset_axis_2, (0, 2, 1, 3))
+
+        offset_axis_2 = tf.cast(offset_axis_2, dtype=tf.float32)
+        offset_axis_1 = tf.cast(offset_axis_1, dtype=tf.float32)
 
         x = labels_boxes[..., 0] * self.cell_size - offset_axis_2
         y = labels_boxes[..., 1] * self.cell_size - offset_axis_1

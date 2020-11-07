@@ -15,8 +15,7 @@ from cfg.config import model_params
 class Network(object):
     def __init__(self, is_train=True):
         self.is_train = is_train
-        self.classes = model_params['class']
-        self.class_num = len(self.classes)
+        self.class_num = model_params['num_classes']
         self.image_size = model_params['image_size']
         self.cell_size = model_params['cell_size']
         self.boxes_per_cell = model_params['boxes_per_cell']

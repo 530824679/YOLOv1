@@ -36,7 +36,7 @@ solver_params = {
     'log_step': 100,                # 日志保存间隔
     'display_step': 10,             # 显示打印间隔
     'flipped': True,                # 支持数据翻转
-    'restore': True                 # 支持restore
+    'restore': False                 # 支持restore
 }
 
 test_params = {
@@ -55,6 +55,6 @@ colors = [[156,102,31], [255,127,80], [255,99,71], [255,255,0], [255,153,18],
           [160,32,240], [218,112,214], [0,255,0], [255,0,0], [25,25,112],
           [3,168,158], [128,138,135], [128,118,105], [160,82,45], [8,46,84]]
 
-Class_to_index = {_class: _index for _index, _class in enumerate(CLASS)}
+Class_to_index = {_class: _index for _index, _class in enumerate(CLASSES)}
 
-Colors_to_map = {_class: _color for _class, _color in zip(CLASS, colors)}
+Colors_to_map = {_class: _color for _class, _color in zip(CLASSES, colors)}

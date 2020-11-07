@@ -132,7 +132,7 @@ class TFRecord(object):
         """
         batch_size = self.batch_size
         min_after_dequeue = 100
-        num_threads = 3
+        num_threads = 8
         capacity = min_after_dequeue + 3 * batch_size
 
 
@@ -154,27 +154,30 @@ class TFRecord(object):
         return image_batch, label_batch
 
 if __name__ == '__main__':
-    file = 'pascal_voc_train.tfrecords'
     tfrecord = TFRecord()
-    batch_example, batch_label = tfrecord.parse_batch_examples(file)
-    with tf.Session() as sess:
+    tfrecord.create_tfrecord()
 
-        init_op = tf.global_variables_initializer()
-        sess.run(init_op)
-
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(coord=coord)
-        for i in range(1):
-            example, label = sess.run([batch_example, batch_label])
-            print(label)
-            print(label.astype(np.float32))
-            box = label[0, ]
-            # cv2.imshow('w', example[0, :, :, :])
-            # cv2.waitKey(0)
-            print(np.shape(example), np.shape(label))
-        # cv2.imshow('img', example)
-        # cv2.waitKey(0)
-        # print(type(example))
-        coord.request_stop()
-        # coord.clear_stop()
-        coord.join(threads)
+    # file = './tfrecord/train.tfrecord'
+    # tfrecord = TFRecord()
+    # batch_example, batch_label = tfrecord.parse_batch_examples(file)
+    # with tf.Session() as sess:
+    #
+    #     init_op = tf.global_variables_initializer()
+    #     sess.run(init_op)
+    #
+    #     coord = tf.train.Coordinator()
+    #     threads = tf.train.start_queue_runners(coord=coord)
+    #     for i in range(1):
+    #         example, label = sess.run([batch_example, batch_label])
+    #         print(label)
+    #         print(label.astype(np.float32))
+    #         box = label[0, ]
+    #         # cv2.imshow('w', example[0, :, :, :])
+    #         # cv2.waitKey(0)
+    #         print(np.shape(example), np.shape(label))
+    #     # cv2.imshow('img', example)
+    #     # cv2.waitKey(0)
+    #     # print(type(example))
+    #     coord.request_stop()
+    #     # coord.clear_stop()
+    #     coord.join(threads)
