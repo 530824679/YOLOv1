@@ -41,17 +41,30 @@ def train():
 
     # 计算损失函数
     Losses = loss_utils.Loss(logits, outputs, 'loss')
-    total_loss = tf.losses.get_total_loss()
+    loss_op = tf.losses.get_total_loss()
+
+    vars = tf.trainable_variables()
+    l2_reg_loss_op = tf.add_n([tf.nn.l2_loss(var) for var in vars]) * solver_params['weight_decay']
+    total_loss = loss_op + l2_reg_loss_op
     tf.summary.scalar('total_loss', total_loss)
 
+    # 创建全局的步骤
     global_step = tf.train.create_global_step()
+    # 设定变化的学习率
+    learning_rate = tf.train.exponential_decay(
+        solver_params['learning_rate'],
+        global_step,
+        solver_params['decay_steps'],
+        solver_params['decay_rate'],
+        solver_params['staircase'],
+        name='learning_rate')
 
     # 设置优化器
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        optimizer = tf.train.AdamOptimizer(solver_params['learning_rate'])
+        # 采用的优化方法是随机梯度下降
+        optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate)
         train_op = slim.learning.create_train_op(total_loss, optimizer, global_step)
-        #train_op = optimizer.minimize(total_loss, global_step=global_step)
 
     # 模型保存
     save_variable = tf.global_variables()

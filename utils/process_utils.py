@@ -64,7 +64,7 @@ def nms(dets, thresh):
 
 def post_processing(outputs):
     """
-    对网络的输出进行解析，得出样本的检测结果，单样本．
+    对网络的输出进行解析，通过类别置信度和非极大值抑制
     :param: outputs:网络的原始输出
     :return: 检测出的结果[box_num, x, y, w, h, prob]
     """
@@ -92,9 +92,12 @@ def post_processing(outputs):
     # 首先将偏移量形式的中心坐标和平方根形式的宽高转换为比例形式
     predict_bboxs[:, :, :, 0] += offset
     predict_bboxs[:, :, :, 1] += np.transpose(offset, (1, 0, 2))
-    predict_bboxs[:, :, :, :2] = 1.0 * predict_bboxs[:, :, :, 0:2] / model_params['cell_size']
-    predict_bboxs[:, :, :, 2:] = np.square(predict_bboxs[:, :, :, 2:])
 
+    # 得到(x, y)相对于整张图片的位置比例
+    predict_bboxs[:, :, :, :2] = 1.0 * predict_bboxs[:, :, :, 0:2] / model_params['cell_size']
+    # 得到预测的宽度和高度乘以平方才能得到相对于整张图片的比例
+    predict_bboxs[:, :, :, 2:] = np.square(predict_bboxs[:, :, :, 2:])
+    # 得到相对于原图的坐标框
     predict_bboxs = predict_bboxs * model_params['image_size']
 
     # 计算得出cell中的各个预测框最终给出的概率值，prob=class_prob*confidence
@@ -103,22 +106,29 @@ def post_processing(outputs):
         for class_n in range(model_params['num_classes']):
             prob[:, :, box, class_n] = predict_confidence[:, :, box] * predict_class_prob[:, :, class_n]
 
-    # 首先低于概率阈值的将被置为０
+    # #如果大于prob_threshold，那么其对应的位置为true,反正false
     filter_probs = np.array(prob >= test_params['prob_threshold'], dtype='bool')
+    # 找到为true的地方，用1来表示true, false是0
     filter_boxes = np.nonzero(filter_probs)
 
+    # 找到符合的类别置信度
     probs_filtered = prob[filter_probs]
     boxes_filtered = predict_bboxs[filter_boxes[0], filter_boxes[1], filter_boxes[2]]
-
+    # 若该cell类别置信度大于阈值，则只取类别置信度最大的那个框，一个cell只负责预测一个类别
     classes_num_filtered = np.argmax(
         filter_probs, axis=3)[
         filter_boxes[0], filter_boxes[1], filter_boxes[2]]
 
+    # 类别置信度排序
     argsort = np.array(np.argsort(probs_filtered))[::-1]
+    # 类别置信度排序
     boxes_filtered = boxes_filtered[argsort]
+    # 找到符合条件的类别置信度，从大到小排序
     probs_filtered = probs_filtered[argsort]
+    # 类别数过滤
     classes_num_filtered = classes_num_filtered[argsort]
 
+    # 非极大值抑制算法
     for i in range(len(boxes_filtered)):
         if probs_filtered[i] == 0:
             continue
@@ -127,8 +137,11 @@ def post_processing(outputs):
                 probs_filtered[j] = 0.0
 
     filter_iou = np.array(probs_filtered > 0.0, dtype='bool')
+    # 经过阈值和非极大值抑制之后得到的框
     boxes_filtered = boxes_filtered[filter_iou]
+    # 经过阈值和非极大值抑制之后得到的类别置信度
     probs_filtered = probs_filtered[filter_iou]
+    # 经过非极大值抑制之后得到的类别，一个cell只负责预测一个类别
     classes_num_filtered = classes_num_filtered[filter_iou]
 
     result = []
