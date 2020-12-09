@@ -44,7 +44,9 @@ class Dataset(object):
         self.w_ratio = 1.0 * self.image_size / image.shape[1]
 
         image = cv2.resize(image, (self.image_size, self.image_size), interpolation=cv2.INTER_LINEAR)
+        # BGR->RGB  uint->float32
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
+        # 归一化处理 [-1.0,1.0]
         image = image / 255.0 * 2 - 1
 
         if self.flipped == True:

@@ -33,7 +33,7 @@ def predict(test_dir, checkpoints):
             image_height = np.shape(image)[1]
             image = cv2.resize(image, (model_params['image_size'], model_params['image_size']))
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).astype(np.float32)
-            cv2.normalize(image, image, 0, 1, cv2.NORM_MINMAX, -1)
+            image = (image / 255.0) * 2.0 - 1.0
 
             batch_image = np.zeros([1, model_params['image_size'], model_params['image_size'], model_params['channels']])
             batch_image[0, :, :, :] = image
@@ -47,7 +47,7 @@ def predict(test_dir, checkpoints):
                 result[i][3] *= (1.0 * image_width / model_params['image_size'])
                 result[i][4] *= (1.0 * image_height / model_params['image_size'])
 
-            draw_result(file, result)
+            draw_results(file, result)
 
 if __name__ == '__main__':
     test_dir = path_params['test_output_dir']

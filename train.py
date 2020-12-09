@@ -21,6 +21,7 @@ def train():
     tfrecord_dir = path_params['tfrecord_dir']
     tfrecord_name = path_params['train_tfrecord_name']
     log_dir = path_params['logs_dir']
+    weights_file = path_params['weights_file']
 
     # 配置GPU
     gpu_options = tf.GPUOptions(allow_growth=True)
@@ -77,6 +78,10 @@ def train():
     with tf.Session(config=config) as sess:
         init_var_op = tf.global_variables_initializer()
         sess.run(init_var_op)
+
+        if weights_file is not None:
+            print('Restoring weights from: ' + weights_file)
+            saver.restore(sess, weights_file)
 
         if restore == True:
             ckpt = tf.train.get_checkpoint_state(checkpoint_dir)

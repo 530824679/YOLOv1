@@ -156,7 +156,7 @@ def post_processing(outputs):
 
     return result
 
-def show_results(image_path, results):
+def draw_results(image_path, results):
     image = cv2.imread(image_path).copy()
 
     if len(results) != 0:

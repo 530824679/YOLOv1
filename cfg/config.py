@@ -5,6 +5,7 @@ import os
 path_params = {
     'data_path': '/home/chenwei/HDD/datasets/object_detection/VOCdevkit/VOC2012',
     'checkpoints_dir': './checkpoints',
+    'weights_file': './weights/yolo.ckpt',
     'logs_dir': './logs',
     'tfrecord_dir': './tfrecord',
     'checkpoints_name': 'model.ckpt',
